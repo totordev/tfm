@@ -13,6 +13,9 @@
 using namespace std;
 namespace fs = filesystem;
 
+string clipboardPath = "";
+bool isCutOperation = false;
+
 set<string> markedFiles;
 string filterQuery = "";  // Stores user input for filtering
 
@@ -70,7 +73,7 @@ vector<string> getFiles(const string& directory, const string& filterQuery = "")
         });
 
     } catch (const exception& e) {
-        mvprintw(0, 0, "Error reading directory: %s", e.what());
+        /* mvprintw(0, 0, "Error reading directory: %s", e.what()); */
     }
 
     return files;
@@ -414,7 +417,7 @@ int main() {
 			for (const auto& file : markedFiles) {
 				string filePath = currentPath + "/" + file;
 
-				mvwprintw(prompt, 0, 1, "Delete files? (y/n): ");
+				mvwprintw(prompt, 0, 1, "Delete file? (y/n): ");
 				wrefresh(prompt);
 				
 				int confirm = wgetch(prompt); // Get user input
@@ -435,40 +438,114 @@ int main() {
 			markedFiles.clear();  // Clear after deletion
 			files = getFiles(currentPath);  // Refresh file list
 		}
+
 		if (ch == '/') {  // Enter filter mode
-			filterQuery = "";
-			werase(prompt);
-			mvwprintw(prompt, 0, 0, "Filter: ");
-			wrefresh(prompt);
+			filterQuery = "";  // Reset the filter query
+			werase(prompt);  // Clear the prompt window
+			mvwprintw(prompt, 0, 1, "/");  // Print the filter label
+			wrefresh(prompt);  // Refresh the prompt window
 
+			// Now enter a loop to capture the filter query as the user types
 			while (true) {
-				int key = wgetch(prompt);
+				int key = wgetch(prompt);  // Capture the key input
 
-				if (key == 27) {  // ESC key: Exit filtering
-					filterQuery = "";
+				if (key == 27) {  // ESC key: Exit filtering mode
+					filterQuery = "";  // Clear the filter query
 					break;
 				} else if (key == '\n') {  // Enter key: Confirm filter
-					files = getFiles(currentPath, filterQuery);  // ✅ Apply filtering
+					files = getFiles(currentPath, filterQuery);  // Apply filtering
 					selectedIndex = 0;  // Reset selection
 					scrollOffset = 0;
 					break;
-				} else if (key == KEY_BACKSPACE || key == 127) {  // Backspace
+				} else if (key == KEY_BACKSPACE || key == 127) {  // Handle backspace
 					if (!filterQuery.empty()) {
-						filterQuery.pop_back();
+						filterQuery.pop_back();  // Remove last character
 					}
-				} else if (isprint(key)) {  // Append valid characters
-					filterQuery += (char)key;
+				} else if (isprint(key)) {  // If key is a printable character
+					filterQuery += (char)key;  // Append to the filter query
 				}
 
-				// **Reprint UI**
-				werase(prompt);
-				mvwprintw(prompt, 0, 0, "Filter: %s", filterQuery.c_str());
-				wrefresh(prompt);
-				files = getFiles(currentPath, filterQuery);  // ✅ Refresh filtered files
-				printFiles(leftPanel, files, 1, 1, selectedIndex, scrollOffset);
+				// Reprint the prompt with the updated filter
+				werase(prompt);  // Clear the prompt
+				mvwprintw(prompt, 0, 1, "/%s", filterQuery.c_str());  // Show filter query
+				wrefresh(prompt);  // Refresh the prompt window
+
+				// **Reprint File List** after each input
+				files = getFiles(currentPath, filterQuery);  // Update filtered files
+				printFiles(leftPanel, files, 1, 1, selectedIndex, scrollOffset);  // Redraw file list
 			}
 		}
 
+
+		if (ch == KEY_RESIZE) {
+			// Get new terminal size
+			getmaxyx(stdscr, termHeight, termWidth);
+
+			// Recreate windows with updated size
+			wresize(leftPanel, termHeight - 3, termWidth / 2);
+			wresize(rightPanel, termHeight - 3, termWidth / 2);
+			wresize(stackBar, 1, termWidth);
+			wresize(prompt, 2, termWidth);
+			
+			// Move windows accordingly
+			mvwin(rightPanel, 1, termWidth / 2);
+			mvwin(prompt, termHeight - 3, 0);
+
+			// Refresh UI elements
+			wclear(stdscr);
+			refresh();
+
+			// Redraw UI with new dimensions
+			printFiles(leftPanel, files, 1, 1, selectedIndex, scrollOffset);
+			printPreview(rightPanel, previewContent);
+
+			// Update prompt with current path
+			werase(prompt);
+			wattron(prompt, A_BOLD);
+			mvwprintw(prompt, 1, 1, "%s", currentPath.c_str());
+			wattroff(prompt, A_BOLD);
+			wrefresh(prompt);
+		}
+		// Copy (yank)
+		if (ch == 'y' && !files.empty()) {
+			clipboardPath = currentPath + "/" + files[selectedIndex];
+			isCutOperation = false;  // Copy mode
+			mvwprintw(prompt, 0, 1, "Copied: %s", files[selectedIndex].c_str());
+			wrefresh(prompt);
+		}
+
+		// Cut (x)
+		if (ch == 'x' && !files.empty()) {
+			clipboardPath = currentPath + "/" + files[selectedIndex];
+			isCutOperation = true;  // Cut mode
+			mvwprintw(prompt, 0, 1, "Cut: %s", files[selectedIndex].c_str());
+			wrefresh(prompt);
+		}
+		if (ch == 'p' && !clipboardPath.empty()) {
+			string fileName = fs::path(clipboardPath).filename().string();
+			string destinationPath = currentPath + "/" + fileName;
+
+			if (fs::exists(destinationPath)) {
+				mvwprintw(prompt, 0, 1, "Error: '%s' already exists!", fileName.c_str());
+			} else {
+				try {
+					if (isCutOperation) {
+						fs::rename(clipboardPath, destinationPath);  // Move file (cut-paste)
+						clipboardPath = "";  // Clear clipboard after moving
+						isCutOperation = false;
+						mvwprintw(prompt, 0, 1, "Moved successfully!");
+					} else {
+						fs::copy(clipboardPath, destinationPath, fs::copy_options::recursive);
+						mvwprintw(prompt, 0, 1, "Copied successfully!");
+					}
+				} catch (const exception &e) {
+					mvwprintw(prompt, 0, 1, "Error: %s", e.what());
+				}
+			}
+		
+			wrefresh(prompt);
+			files = getFiles(currentPath);  // Refresh file list
+		}
 
 
 
