@@ -19,15 +19,26 @@ Now tfm is installed on your device.
 
 # Usage
 
-`h/j/k/l`: Navigation
-`gg`: Jump to the first file
-`G`: Jump to the last file
-`Space`: Mark a file
-`n`: Create new file
-`N`: Create new directory
-`r`: Rename a file
-`d`: Delete file
-`D`: Delete all marked files
-`y`: Copy a file
-`x`: Cut a file
-`p`: Paste a file
+`h/j/k/l` Navigation
+
+`gg` Jump to the first file
+
+`G` Jump to the last file
+
+`Space` Mark a file
+
+`n` Create new file
+
+`N` Create new directory
+
+`r` Rename a file
+
+`d` Delete file
+
+`D` Delete all marked files
+
+`y` Copy a file
+
+`x` Cut a file
+
+`p` Paste a file
