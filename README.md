@@ -42,3 +42,5 @@ Now tfm is installed on your device.
 `x` Cut a file
 
 `p` Paste a file
+
+`/` Search
